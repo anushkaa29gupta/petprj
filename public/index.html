@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>College Portal — PET Project</title>
+<style>
+* { box-sizing:border-box; margin:0; padding:0; }
+body { font-family:'Segoe UI',sans-serif; background:#f0f2f5; min-height:100vh; display:flex; align-items:center; justify-content:center; padding:20px; }
+
+/* ── Auth ── */
+.auth-box { background:#fff; border-radius:12px; box-shadow:0 4px 24px rgba(0,0,0,.10); width:100%; max-width:460px; padding:36px 32px 28px; }
+.logo { text-align:center; margin-bottom:22px; }
+.logo h1 { font-size:1.4rem; font-weight:800; color:#1a1a2e; }
+.logo p  { font-size:0.75rem; color:#aaa; margin-top:4px; }
+.tabs { display:flex; border-bottom:2px solid #eee; margin-bottom:18px; }
+.tab  { flex:1; text-align:center; padding:10px; cursor:pointer; font-size:0.87rem; font-weight:600; color:#aaa; border-bottom:2px solid transparent; margin-bottom:-2px; transition:all .2s; }
+.tab.active { color:#4361ee; border-bottom-color:#4361ee; }
+.form { display:none; }
+.form.active { display:block; }
+.field { margin-bottom:13px; }
+label { display:block; font-size:0.71rem; font-weight:700; color:#666; margin-bottom:4px; text-transform:uppercase; letter-spacing:.5px; }
+input { width:100%; padding:10px 12px; border:1.5px solid #e0e0e0; border-radius:7px; font-size:0.9rem; color:#222; outline:none; background:#fafafa; transition:border .2s; }
+input:focus { border-color:#4361ee; background:#fff; }
+.btn { width:100%; padding:11px; background:#4361ee; color:#fff; border:none; border-radius:7px; font-size:0.92rem; font-weight:700; cursor:pointer; margin-top:4px; transition:background .2s; }
+.btn:hover { background:#3451d1; }
+.btn:disabled { background:#b0b8e0; cursor:not-allowed; }
+.alert { display:none; margin-top:11px; padding:9px 13px; border-radius:7px; font-size:0.83rem; font-weight:500; text-align:center; }
+.alert.success { display:block; background:#e8f5e9; color:#2e7d32; border:1px solid #a5d6a7; }
+.alert.error   { display:block; background:#ffebee; color:#c62828; border:1px solid #ef9a9a; }
+.switch-text { text-align:center; margin-top:12px; font-size:0.79rem; color:#aaa; }
+.switch-text a { color:#4361ee; cursor:pointer; font-weight:600; }
+
+/* ══════════════════════
+   PORTAL (all roles)
+══════════════════════ */
+#portal { display:none; width:100%; min-height:100vh; background:#f0f2f5; }
+.portal-header { background:#1a1a2e; color:#fff; padding:13px 26px; display:flex; justify-content:space-between; align-items:center; position:sticky; top:0; z-index:10; }
+.ph-brand { font-size:0.93rem; font-weight:700; }
+.ph-brand span { color:#7eb8f7; font-size:0.75rem; font-weight:400; margin-left:8px; }
+.ph-right { display:flex; align-items:center; gap:10px; font-size:0.79rem; color:#aaa; }
+.ph-right strong { color:#fff; }
+.role-badge { padding:2px 9px; border-radius:20px; font-size:0.68rem; font-weight:700; }
+.rb-student    { background:#1a2a4a; color:#7eb8f7; }
+.rb-teacher    { background:#1a3a1a; color:#69f0ae; }
+.rb-accountant { background:#2a1a3a; color:#ce93d8; }
+.portal-logout { background:transparent; color:#ef5350; border:1px solid #ef5350; border-radius:5px; padding:4px 11px; font-size:0.76rem; font-weight:600; cursor:pointer; }
+
+.portal-body { display:flex; min-height:calc(100vh - 50px); }
+
+/* Sidebar */
+.sidebar { width:210px; background:#fff; border-right:1px solid #e8e8e8; padding:18px 0; flex-shrink:0; }
+.sb-section { padding:7px 15px 3px; font-size:0.67rem; font-weight:700; color:#bbb; text-transform:uppercase; letter-spacing:.5px; }
+.sb-item { display:flex; align-items:center; gap:9px; padding:9px 15px; font-size:0.83rem; color:#555; cursor:pointer; transition:all .15s; border-left:3px solid transparent; }
+.sb-item:hover { background:#f8f9ff; color:#4361ee; border-left-color:#4361ee; }
+.sb-item.active { background:#f0f3ff; color:#4361ee; border-left-color:#4361ee; font-weight:600; }
+.sb-item .ico { font-size:0.95rem; width:18px; text-align:center; }
+.sb-lock { font-size:0.64rem; margin-left:auto; color:#ef9a9a; font-weight:700; }
+
+/* Main */
+.main { flex:1; padding:22px 26px; overflow-y:auto; }
+.pg-title { font-size:1.05rem; font-weight:700; color:#1a1a2e; margin-bottom:3px; }
+.pg-sub   { font-size:0.76rem; color:#aaa; margin-bottom:18px; }
+
+.card { background:#fff; border:1px solid #e8e8e8; border-radius:10px; padding:16px 18px; margin-bottom:14px; }
+.card h3 { font-size:0.86rem; font-weight:700; color:#1a1a2e; margin-bottom:11px; }
+
+.prow { display:flex; justify-content:space-between; padding:7px 0; border-bottom:1px solid #f5f5f5; font-size:0.85rem; }
+.prow:last-child { border-bottom:none; }
+.prow .k { color:#999; }
+.prow .v { color:#1a1a2e; font-weight:600; }
+
+/* Tables */
+.tbl { width:100%; border-collapse:collapse; font-size:0.83rem; }
+.tbl th { text-align:left; padding:8px 11px; background:#f8f9ff; color:#666; font-size:0.71rem; text-transform:uppercase; border-bottom:2px solid #e0e4ff; }
+.tbl td { padding:9px 11px; border-bottom:1px solid #f5f5f5; color:#333; }
+.tbl tr:hover td { background:#fafbff; }
+.gpill { display:inline-block; padding:2px 8px; border-radius:12px; font-size:0.71rem; font-weight:700; }
+.gAp { background:#e8f5e9; color:#2e7d32; }
+.gA  { background:#e8f5e9; color:#388e3c; }
+.gBp { background:#e3f2fd; color:#1565c0; }
+.gB  { background:#e3f2fd; color:#1976d2; }
+.status-paid    { color:#2e7d32; font-weight:700; font-size:0.78rem; }
+.status-pending { color:#e65100; font-weight:700; font-size:0.78rem; }
+.status-ready   { color:#1565c0; font-size:0.78rem; }
+.status-draft   { color:#999;    font-size:0.78rem; }
+
+/* Restricted attempt UI */
+.restrict-card { background:#fff; border:1px solid #e8e8e8; border-radius:10px; overflow:hidden; margin-bottom:11px; }
+.rc-head { display:flex; justify-content:space-between; align-items:center; padding:13px 16px; cursor:pointer; }
+.rc-head:hover { background:#fafafa; }
+.rc-left { display:flex; align-items:center; gap:9px; }
+.rc-icon  { font-size:1.1rem; }
+.rc-title { font-size:0.86rem; font-weight:600; color:#1a1a2e; }
+.rc-sub   { font-size:0.71rem; color:#aaa; margin-top:2px; }
+.rc-badge { font-size:0.67rem; font-weight:700; padding:3px 9px; border-radius:20px; }
+.b-restricted { background:#ffebee; color:#c62828; border:1px solid #ef9a9a; }
+.b-allowed    { background:#e8f5e9; color:#2e7d32; border:1px solid #a5d6a7; }
+.rc-body { display:none; padding:13px 16px; border-top:1px solid #f0f0f0; background:#fafafa; }
+.rc-body.open { display:block; }
+.try-btn { display:inline-block; padding:7px 14px; border-radius:6px; font-size:0.8rem; font-weight:600; cursor:pointer; border:none; margin-right:7px; margin-top:3px; transition:all .2s; }
+.try-btn.danger { background:#ffebee; color:#c62828; border:1px solid #ef9a9a; }
+.try-btn.danger:hover { background:#ef5350; color:#fff; }
+.acc-result { margin-top:9px; padding:9px 13px; border-radius:6px; font-size:0.81rem; font-weight:500; display:none; }
+.acc-result.blocked { display:block; background:#ffebee; color:#c62828; border:1px solid #ef9a9a; }
+.acc-result.allowed { display:block; background:#e8f5e9; color:#2e7d32; border:1px solid #a5d6a7; }
+
+/* Enc peek */
+.enc-toggle { margin-top:13px; text-align:center; font-size:0.75rem; color:#aaa; cursor:pointer; }
+.enc-toggle span { color:#4361ee; font-weight:600; }
+.enc-peek { display:none; margin-top:10px; background:#fff8e1; border:1px solid #ffe082; border-radius:8px; padding:11px 13px; }
+.enc-peek h4 { font-size:0.69rem; text-transform:uppercase; color:#f57f17; margin-bottom:7px; }
+.ef-label { font-size:0.69rem; color:#bbb; margin-bottom:3px; }
+.ef-val { font-family:'Courier New',monospace; font-size:0.61rem; color:#888; background:#fff; border:1px solid #ffe082; border-radius:4px; padding:4px 7px; word-break:break-all; margin-bottom:7px; }
+
+/* ══════════════════════
+   ADMIN PANEL
+══════════════════════ */
+body.admin-mode { background:#0d0f18; align-items:flex-start; padding:0; }
+#adminPanel { display:none; width:100%; min-height:100vh; background:#0d0f18; color:#e0e0e0; }
+.adm-header { background:#13151f; border-bottom:1px solid #1e2235; padding:13px 26px; display:flex; justify-content:space-between; align-items:center; position:sticky; top:0; z-index:10; }
+.adm-header h1 { font-size:0.97rem; font-weight:800; color:#fff; }
+.adm-header .sub { font-size:0.71rem; color:#555; margin-top:2px; }
+.adm-logout { background:transparent; color:#ef5350; border:1px solid #ef5350; border-radius:5px; padding:5px 13px; font-size:0.78rem; font-weight:700; cursor:pointer; }
+.adm-logout:hover { background:#ef5350; color:#fff; }
+.adm-nav { display:flex; border-bottom:1px solid #1e2235; background:#13151f; padding:0 26px; }
+.adm-tab { padding:11px 18px; font-size:0.81rem; font-weight:600; color:#555; cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-1px; transition:all .2s; }
+.adm-tab.active { color:#4361ee; border-bottom-color:#4361ee; }
+.adm-body { padding:22px 26px; }
+.adm-section { display:none; }
+.adm-section.active { display:block; }
+.adm-topbar { display:flex; gap:11px; align-items:center; margin-bottom:18px; flex-wrap:wrap; }
+.stat-pill { background:#13151f; border:1px solid #1e2235; border-radius:8px; padding:9px 16px; font-size:0.8rem; color:#aaa; }
+.stat-pill strong { color:#fff; font-size:1.15rem; display:block; }
+.srch { background:#13151f; border:1px solid #1e2235; border-radius:7px; color:#e0e0e0; padding:8px 13px; font-size:0.84rem; outline:none; width:240px; }
+.srch:focus { border-color:#4361ee; }
+.srch::placeholder { color:#3a3d50; }
+.ref-btn { background:#13151f; border:1px solid #1e2235; border-radius:7px; color:#666; padding:8px 14px; font-size:0.8rem; cursor:pointer; }
+.ref-btn:hover { border-color:#4361ee; color:#4361ee; }
+.twrap { background:#13151f; border:1px solid #1e2235; border-radius:10px; overflow:hidden; overflow-x:auto; }
+table { width:100%; border-collapse:collapse; font-size:0.81rem; min-width:980px; }
+thead { background:#0d0f18; }
+th { text-align:left; padding:10px 13px; font-size:0.66rem; text-transform:uppercase; letter-spacing:.7px; color:#444; font-weight:700; border-bottom:1px solid #1e2235; white-space:nowrap; }
+td { padding:10px 13px; color:#bbb; border-bottom:1px solid #181a27; vertical-align:middle; }
+tr:last-child td { border-bottom:none; }
+tr:hover td { background:#161928; }
+.c-id   { color:#444; font-size:0.73rem; }
+.c-name { color:#fff; font-weight:600; }
+.c-mail { color:#7eb8f7; }
+.c-enc  { font-family:'Courier New',monospace; font-size:0.62rem; color:#3a3d50; max-width:130px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.c-date { color:#444; font-size:0.73rem; white-space:nowrap; }
+.empty-state { text-align:center; padding:38px; color:#333; font-size:0.85rem; }
+
+/* Role selector in admin table */
+.role-select { background:#0d0f18; border:1px solid #2a2d3e; color:#e0e0e0; border-radius:5px; padding:4px 8px; font-size:0.76rem; cursor:pointer; outline:none; }
+.role-select:focus { border-color:#4361ee; }
+.save-role-btn { background:#1a2a4a; border:1px solid #2a4a7a; color:#7eb8f7; border-radius:4px; padding:4px 9px; font-size:0.73rem; cursor:pointer; margin-left:5px; transition:all .2s; }
+.save-role-btn:hover { background:#4361ee; color:#fff; border-color:#4361ee; }
+.del-btn { background:transparent; border:1px solid #2a1212; color:#ef5350; border-radius:4px; padding:3px 9px; font-size:0.71rem; cursor:pointer; }
+.del-btn:hover { background:#ef5350; color:#fff; border-color:#ef5350; }
+
+/* Audit */
+.abadge { display:inline-block; padding:2px 7px; border-radius:4px; font-size:0.65rem; font-weight:700; white-space:nowrap; }
+.ab-INSERT               { background:#0a2a0a; color:#4caf50; border:1px solid #1a4a1a; }
+.ab-DELETE               { background:#2a0a0a; color:#ef5350; border:1px solid #4a1a1a; }
+.ab-UPDATE               { background:#1a1a00; color:#ffa000; border:1px solid #3a3000; }
+.ab-LOGIN                { background:#0a1a2a; color:#7eb8f7; border:1px solid #1a3a5a; }
+.ab-LOGIN_FAILED         { background:#2a1010; color:#ff7043; border:1px solid #4a2010; }
+.ab-PROFILE_VIEW         { background:#1a0a2a; color:#ce93d8; border:1px solid #3a1a4a; }
+.ab-REGISTER_FAILED      { background:#2a1a0a; color:#ffb74d; border:1px solid #4a3010; }
+.ab-UNAUTHORIZED_ACCESS  { background:#3a0a0a; color:#ff1744; border:1px solid #6a1010; }
+.ab-EXAM_PAPER_ACCESS_ATTEMPT { background:#3a1a00; color:#ff9100; border:1px solid #6a3000; }
+.ab-DOWNLOAD_ATTEMPT     { background:#1a2a0a; color:#aed581; border:1px solid #3a4a1a; }
+.ab-ADMIN_ACCESS_ATTEMPT { background:#3a0a2a; color:#ff4081; border:1px solid #6a1040; }
+.ab-VIEW_OWN_GRADES      { background:#0a1a0a; color:#69f0ae; border:1px solid #1a3a1a; }
+.ab-VIEW_STUDENT_RECORDS { background:#0a1a2a; color:#40c4ff; border:1px solid #1a3a5a; }
+.ab-VIEW_OWN_SALARY      { background:#1a0a2a; color:#ea80fc; border:1px solid #3a1a4a; }
+.ab-VIEW_ALL_SALARIES    { background:#2a1a2a; color:#f48fb1; border:1px solid #4a2a4a; }
+.ab-VIEW_EXAM_PAPERS     { background:#1a1a0a; color:#fff176; border:1px solid #3a3a1a; }
+.ab-VIEW_STUDENT_RECORDS_TEACHER { background:#0a1a2a; color:#40c4ff; }
+.ab-ROLE_CHANGED         { background:#1a1a2a; color:#80cbc4; border:1px solid #2a3a3a; }
+.ab-ADMIN_VIEW_USERS     { background:#1a1a2a; color:#90a4ae; border:1px solid #2a2a4a; }
+.ab-ADMIN_VIEW_LOGS      { background:#1a1a2a; color:#80cbc4; border:1px solid #2a3a3a; }
+.sev-high { color:#ff1744; font-weight:700; font-size:0.69rem; }
+.log-data { font-family:'Courier New',monospace; font-size:0.61rem; color:#555; max-width:170px; max-height:42px; overflow:hidden; word-break:break-all; line-height:1.4; }
+.log-ip   { font-size:0.71rem; color:#666; }
+.log-dev  { font-size:0.61rem; color:#444; max-width:130px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+/* Key gate */
+.key-gate { position:fixed; inset:0; background:rgba(0,0,0,.9); display:flex; align-items:center; justify-content:center; z-index:100; }
+.key-box  { background:#13151f; border:1px solid #1e2235; border-radius:12px; padding:34px; width:330px; text-align:center; }
+.key-box h3 { color:#fff; margin-bottom:7px; font-size:1rem; }
+.key-box p  { color:#555; font-size:0.78rem; margin-bottom:16px; }
+.key-box input { background:#0d0f18; border:1px solid #1e2235; color:#e0e0e0; border-radius:7px; padding:10px 13px; width:100%; font-size:0.88rem; outline:none; margin-bottom:11px; }
+.key-box input:focus { border-color:#4361ee; }
+.key-err { color:#ef5350; font-size:0.76rem; margin-top:7px; display:none; }
+</style>
+</head>
+<body>
+
+<!-- ══ AUTH ══ -->
+<div class="auth-box" id="authBox">
+  <div class="logo">
+    <h1>🎓 College Portal</h1>
+    <p>PET-PROJECT · Student Information System</p>
+  </div>
+  <div class="tabs">
+    <div class="tab active" id="tab-register" onclick="switchTab('register')">Register</div>
+    <div class="tab"        id="tab-login"    onclick="switchTab('login')">Login</div>
+  </div>
+  <div class="form active" id="form-register">
+    <div class="field"><label>Full Name</label>  <input id="r_name"     placeholder="Enter full name"></div>
+    <div class="field"><label>Mobile No.</label> <input id="r_mobile"   placeholder="Enter mobile number"></div>
+    <div class="field"><label>Address</label>    <input id="r_address"  placeholder="Enter address"></div>
+    <div class="field"><label>Email</label>      <input id="r_email"    type="email" placeholder="Enter email"></div>
+    <div class="field"><label>Password</label>   <input id="r_password" type="password" placeholder="Min 8 characters"></div>
+    <button class="btn" id="r_btn" onclick="register()">Register</button>
+    <div class="alert" id="r_alert"></div>
+    <div class="switch-text">Already registered? <a onclick="switchTab('login')">Login here</a></div>
+  </div>
+  <div class="form" id="form-login">
+    <div class="field"><label>Email</label>    <input id="l_email"    type="email" placeholder="Enter email"></div>
+    <div class="field"><label>Password</label> <input id="l_password" type="password" placeholder="Enter password"></div>
+    <button class="btn" id="l_btn" onclick="login()">Login</button>
+    <div class="alert" id="l_alert"></div>
+    <div class="switch-text">New here? <a onclick="switchTab('register')">Create account</a></div>
+  </div>
+</div>
+
+<!-- ══ PORTAL ══ -->
+<div id="portal">
+  <div class="portal-header">
+    <div class="ph-brand">🎓 College Portal <span id="ph_role_label"></span></div>
+    <div class="ph-right">
+      <span>Logged in as: <strong id="ph_name"></strong></span>
+      <span class="role-badge" id="ph_role_badge"></span>
+      <button class="portal-logout" onclick="logout()">Logout</button>
+    </div>
+  </div>
+  <div class="portal-body">
+    <div class="sidebar" id="sidebar"></div>
+    <div class="main"    id="main-content"></div>
+  </div>
+</div>
+
+<!-- ══ ADMIN PANEL ══ -->
+<div id="adminPanel">
+  <div class="key-gate" id="keyGate">
+    <div class="key-box">
+      <h3>⚙️ Admin Access</h3>
+      <p>Enter your admin key to continue</p>
+      <input type="password" id="adminKeyInput" placeholder="Admin key"
+             onkeydown="if(event.key==='Enter') verifyKey()">
+      <button class="btn" onclick="verifyKey()">Enter Panel</button>
+      <div class="key-err" id="keyErr">❌ Incorrect key.</div>
+    </div>
+  </div>
+  <div class="adm-header">
+    <div>
+      <h1>⚙️ College Portal — Admin Panel</h1>
+      <div class="sub">Role management · Full audit logging · AES encrypted DB</div>
+    </div>
+    <button class="adm-logout" onclick="exitAdmin()">← Exit</button>
+  </div>
+  <div class="adm-nav">
+    <div class="adm-tab active" onclick="switchAdminTab('users')">Students & Staff</div>
+    <div class="adm-tab"        onclick="switchAdminTab('audit')">Audit Logs</div>
+  </div>
+  <div class="adm-body">
+
+    <div class="adm-section active" id="asec-users">
+      <div class="adm-topbar">
+        <div class="stat-pill"><strong id="statTotal">—</strong>Total Users</div>
+        <input class="srch" type="text" id="searchInput" placeholder="Search name, email, role..." oninput="filterTable()">
+        <button class="ref-btn" onclick="loadUsers()">↻ Refresh</button>
+      </div>
+      <div class="twrap">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th><th>Name</th><th>Email</th><th>Role</th>
+              <th>Mobile</th><th>Address</th>
+              <th>🔒 Enc. Name</th><th>Password Hash</th>
+              <th>Joined</th><th>Change Role</th><th>Delete</th>
+            </tr>
+          </thead>
+          <tbody id="tbody"><tr><td colspan="11" class="empty-state">Loading...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="adm-section" id="asec-audit">
+      <div class="adm-topbar">
+        <div class="stat-pill"><strong id="auditTotal">—</strong>Total Logs</div>
+        <input class="srch" type="text" id="auditSearch" placeholder="Search user, action, IP..." oninput="filterAudit()">
+        <button class="ref-btn" onclick="loadAuditLogs()">↻ Refresh</button>
+      </div>
+      <div class="twrap">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th><th>Action</th><th>Who</th><th>Record</th>
+              <th>Detail</th><th>IP</th><th>Device</th><th>When</th>
+            </tr>
+          </thead>
+          <tbody id="auditTbody">
+            <tr><td colspan="8" class="empty-state">Click "Audit Logs" to load.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const API = "http://localhost:3000/api";
+let token = "", adminKey = "", currentUser = null;
+let allUsers = [], allLogs = [];
+
+// ── Auth tab ──
+function switchTab(tab) {
+  ['register','login'].forEach(t => {
+    document.getElementById('tab-'+t).classList.toggle('active',t===tab);
+    document.getElementById('form-'+t).classList.toggle('active',t===tab);
+  });
+  document.getElementById('r_alert').className='alert';
+  document.getElementById('l_alert').className='alert';
+}
+function showAlert(id,msg,type){ const e=document.getElementById(id); e.textContent=msg; e.className='alert '+type; }
+
+// ── Register ──
+async function register(){
+  const btn=document.getElementById('r_btn');
+  const name=document.getElementById('r_name').value.trim();
+  const mobile=document.getElementById('r_mobile').value.trim();
+  const address=document.getElementById('r_address').value.trim();
+  const email=document.getElementById('r_email').value.trim();
+  const password=document.getElementById('r_password').value;
+  if(!name||!mobile||!address||!email||!password) return showAlert('r_alert','⚠️ Fill all fields.','error');
+  if(password.length<8) return showAlert('r_alert','⚠️ Password min 8 characters.','error');
+  btn.disabled=true; btn.textContent='Registering...';
+  try{
+    const res=await fetch(`${API}/register`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,mobile,address,email,password})});
+    const data=await res.json();
+    if(data.success){ showAlert('r_alert','✅ Registered! Please login.','success'); document.getElementById('l_email').value=email; setTimeout(()=>switchTab('login'),1500); }
+    else showAlert('r_alert','❌ '+data.message,'error');
+  }catch(e){showAlert('r_alert','❌ '+e.message,'error');}
+  btn.disabled=false; btn.textContent='Register';
+}
+
+// ── Login ──
+async function login(){
+  const btn=document.getElementById('l_btn');
+  const email=document.getElementById('l_email').value.trim();
+  const password=document.getElementById('l_password').value;
+  if(!email||!password) return showAlert('l_alert','⚠️ Enter email and password.','error');
+  btn.disabled=true; btn.textContent='Logging in...';
+  try{
+    const res=await fetch(`${API}/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})});
+    const data=await res.json();
+    if(data.success){ token=data.token; localStorage.setItem('token',token); localStorage.setItem('email',email); currentUser=data.user; showPortal(data.user); }
+    else showAlert('l_alert','❌ '+data.message,'error');
+  }catch(e){showAlert('l_alert','❌ '+e.message,'error');}
+  btn.disabled=false; btn.textContent='Login';
+}
+
+// ── Portal ──
+function showPortal(user){
+  document.getElementById('authBox').style.display='none';
+  document.getElementById('portal').style.display='block';
+  document.getElementById('ph_name').textContent=user.name;
+  const rmap={'student':'Student','teacher':'Teacher','accountant':'Accountant'};
+  const cmap={'student':'rb-student','teacher':'rb-teacher','accountant':'rb-accountant'};
+  document.getElementById('ph_role_badge').textContent=rmap[user.role]||user.role;
+  document.getElementById('ph_role_badge').className='role-badge '+(cmap[user.role]||'');
+  document.getElementById('ph_role_label').textContent='· '+rmap[user.role]+' Portal';
+  buildSidebar(user.role);
+  renderSection('profile',user);
+}
+
+function buildSidebar(role){
+  const sb=document.getElementById('sidebar');
+  let html='';
+  // Common
+  html+=`<div class="sb-section">My Account</div>
+    <div class="sb-item active" id="sbi-profile" onclick="clickSection('profile')"><span class="ico">👤</span> My Profile</div>`;
+
+  if(role==='student'){
+    html+=`<div class="sb-item" id="sbi-grades" onclick="clickSection('grades')"><span class="ico">📊</span> My Grades</div>`;
+    html+=`<div class="sb-section" style="margin-top:10px">Restricted Areas</div>
+      <div class="sb-item" id="sbi-exam-attempt"   onclick="clickSection('exam-attempt')"><span class="ico">📝</span> Exam Papers <span class="sb-lock">🔒</span></div>
+      <div class="sb-item" id="sbi-salary-attempt" onclick="clickSection('salary-attempt')"><span class="ico">💰</span> Salary Records <span class="sb-lock">🔒</span></div>
+      <div class="sb-item" id="sbi-records-attempt" onclick="clickSection('records-attempt')"><span class="ico">👥</span> Student Records <span class="sb-lock">🔒</span></div>
+      <div class="sb-item" id="sbi-admin-attempt"  onclick="clickSection('admin-attempt')"><span class="ico">⚙️</span> Admin Panel <span class="sb-lock">🔒</span></div>`;
+  }
+  if(role==='teacher'){
+    html+=`<div class="sb-section" style="margin-top:10px">Allowed</div>
+      <div class="sb-item" id="sbi-student-records" onclick="clickSection('student-records')"><span class="ico">👥</span> Student Records</div>
+      <div class="sb-item" id="sbi-exam-papers"     onclick="clickSection('exam-papers')"><span class="ico">📝</span> Exam Papers</div>
+      <div class="sb-item" id="sbi-my-salary"       onclick="clickSection('my-salary')"><span class="ico">💰</span> My Salary</div>
+      <div class="sb-section" style="margin-top:10px">Restricted</div>
+      <div class="sb-item" id="sbi-all-salaries-attempt" onclick="clickSection('all-salaries-attempt')"><span class="ico">💸</span> All Salaries <span class="sb-lock">🔒</span></div>
+      <div class="sb-item" id="sbi-admin-attempt"   onclick="clickSection('admin-attempt')"><span class="ico">⚙️</span> Admin Panel <span class="sb-lock">🔒</span></div>`;
+  }
+  if(role==='accountant'){
+    html+=`<div class="sb-section" style="margin-top:10px">Allowed</div>
+      <div class="sb-item" id="sbi-all-salaries" onclick="clickSection('all-salaries')"><span class="ico">💰</span> All Teacher Salaries</div>
+      <div class="sb-section" style="margin-top:10px">Restricted</div>
+      <div class="sb-item" id="sbi-records-attempt" onclick="clickSection('records-attempt')"><span class="ico">👥</span> Student Records <span class="sb-lock">🔒</span></div>
+      <div class="sb-item" id="sbi-exam-attempt"    onclick="clickSection('exam-attempt')"><span class="ico">📝</span> Exam Papers <span class="sb-lock">🔒</span></div>
+      <div class="sb-item" id="sbi-admin-attempt"   onclick="clickSection('admin-attempt')"><span class="ico">⚙️</span> Admin Panel <span class="sb-lock">🔒</span></div>`;
+  }
+  sb.innerHTML=html;
+}
+
+function clickSection(name){
+  document.querySelectorAll('.sb-item').forEach(i=>i.classList.remove('active'));
+  const el=document.getElementById('sbi-'+name); if(el) el.classList.add('active');
+  renderSection(name, currentUser);
+}
+
+async function renderSection(name, user){
+  const mc=document.getElementById('main-content');
+
+  if(name==='profile'){
+    mc.innerHTML=`
+      <div class="pg-title">My Profile</div>
+      <div class="pg-sub">Your personal information</div>
+      <div class="card">
+        <h3>Personal Details</h3>
+        <div class="prow"><span class="k">Login Email</span><span class="v">${esc(user.userid)}</span></div>
+        <div class="prow"><span class="k">Name</span>       <span class="v">${esc(user.name)}</span></div>
+        <div class="prow"><span class="k">Mobile</span>     <span class="v">${esc(user.mobile)}</span></div>
+        <div class="prow"><span class="k">Address</span>    <span class="v">${esc(user.address)}</span></div>
+        <div class="prow"><span class="k">Email</span>      <span class="v">${esc(user.email)}</span></div>
+        <div class="prow"><span class="k">Role</span>       <span class="v">${esc(user.role)}</span></div>
+      </div>
+      <div class="enc-toggle" onclick="toggleEnc()">🔒 <span id="encTxt">Show encrypted DB view</span></div>
+      <div class="enc-peek" id="encPeek"><h4>🗄️ What MySQL stores — AES Ciphertext</h4><div id="encFields"><em style="color:#bbb;font-size:0.75rem;">Click "Show encrypted DB view" to load</em></div></div>`;
+    return;
+  }
+
+  if(name==='grades'){
+    mc.innerHTML=`<div class="pg-title">My Grades</div><div class="pg-sub">Semester 5 · Academic Performance</div><div class="card" id="grades-card"><h3>Loading...</h3></div>`;
+    try{
+      const r=await fetch(`${API}/college/my-grades`,{headers:{Authorization:'Bearer '+token}});
+      const d=await r.json();
+      if(d.success){
+        const g=d.grades;
+        document.getElementById('grades-card').innerHTML=`<h3>Grade Sheet · ${esc(g.semester)}</h3>
+          <table class="tbl"><thead><tr><th>Code</th><th>Subject</th><th>Marks</th><th>Grade</th></tr></thead>
+          <tbody>${g.subjects.map(s=>`<tr><td>${esc(s.code)}</td><td>${esc(s.name)}</td><td><strong>${s.marks}</strong>/100</td><td><span class="gpill g${s.grade.replace('+','p')}">${esc(s.grade)}</span></td></tr>`).join('')}</tbody></table>
+          <div style="margin-top:13px;font-size:0.84rem;color:#666">CGPA: <strong style="color:#1a1a2e">${g.cgpa}</strong></div>`;
+      }
+    }catch(e){document.getElementById('grades-card').innerHTML=`<p style="color:#c62828">Error loading grades</p>`;}
+    return;
+  }
+
+  if(name==='student-records'){
+    mc.innerHTML=`<div class="pg-title">Student Records</div><div class="pg-sub">All enrolled students — teacher access</div><div class="card" id="srec-card"><h3>Loading...</h3></div>`;
+    try{
+      const r=await fetch(`${API}/college/student-records`,{headers:{Authorization:'Bearer '+token}});
+      const d=await r.json();
+      if(d.success){
+        document.getElementById('srec-card').innerHTML=`<h3>All Students (${d.students.length})</h3>
+          <table class="tbl"><thead><tr><th>#</th><th>Name</th><th>Email</th><th>Semester</th><th>CGPA</th></tr></thead>
+          <tbody>${d.students.map(s=>`<tr><td>${s.id}</td><td>${esc(s.name)}</td><td style="color:#7eb8f7">${esc(s.email)}</td><td>${esc(s.semester)}</td><td><strong>${s.cgpa}</strong></td></tr>`).join('')}</tbody></table>`;
+      } else {
+        document.getElementById('srec-card').innerHTML=`<p style="color:#c62828">❌ ${esc(d.message)}</p>`;
+      }
+    }catch(e){document.getElementById('srec-card').innerHTML=`<p style="color:#c62828">Error</p>`;}
+    return;
+  }
+
+  if(name==='exam-papers'){
+    mc.innerHTML=`<div class="pg-title">Exam Papers</div><div class="pg-sub">Semester 6 — teacher view</div><div class="card" id="ep-card"><h3>Loading...</h3></div>`;
+    try{
+      const r=await fetch(`${API}/college/exam-papers`,{headers:{Authorization:'Bearer '+token}});
+      const d=await r.json();
+      if(d.success){
+        document.getElementById('ep-card').innerHTML=`<h3>Upcoming Exam Papers (${d.papers.length})</h3>
+          <table class="tbl"><thead><tr><th>Code</th><th>Subject</th><th>Exam Date</th><th>Status</th></tr></thead>
+          <tbody>${d.papers.map(p=>`<tr><td>${esc(p.code)}</td><td>${esc(p.name)}</td><td>${esc(p.date)}</td><td><span class="status-${p.status.toLowerCase()}">${esc(p.status)}</span></td></tr>`).join('')}</tbody></table>`;
+      } else {
+        document.getElementById('ep-card').innerHTML=`<p style="color:#c62828">❌ ${esc(d.message)}</p>`;
+      }
+    }catch(e){document.getElementById('ep-card').innerHTML=`<p style="color:#c62828">Error</p>`;}
+    return;
+  }
+
+  if(name==='my-salary'){
+    mc.innerHTML=`<div class="pg-title">My Salary</div><div class="pg-sub">Your salary information — teacher view</div><div class="card" id="sal-card"><h3>Loading...</h3></div>`;
+    try{
+      const r=await fetch(`${API}/college/my-salary`,{headers:{Authorization:'Bearer '+token}});
+      const d=await r.json();
+      if(d.success){
+        const s=d.salary;
+        document.getElementById('sal-card').innerHTML=`<h3>Salary Slip · ${esc(s.month)}</h3>
+          <div class="prow"><span class="k">Basic Pay</span><span class="v">₹${s.basic.toLocaleString()}</span></div>
+          <div class="prow"><span class="k">Allowances</span><span class="v">₹${s.allowances.toLocaleString()}</span></div>
+          <div class="prow"><span class="k">Deductions</span><span class="v" style="color:#c62828">-₹${s.deductions.toLocaleString()}</span></div>
+          <div class="prow"><span class="k">Net Pay</span><span class="v" style="color:#2e7d32;font-size:1.05rem">₹${s.net.toLocaleString()}</span></div>
+          <div class="prow"><span class="k">Status</span><span class="v status-paid">${esc(s.status)}</span></div>
+          <div class="prow"><span class="k">Paid On</span><span class="v">${esc(s.paid_on)}</span></div>`;
+      }
+    }catch(e){document.getElementById('sal-card').innerHTML=`<p style="color:#c62828">Error</p>`;}
+    return;
+  }
+
+  if(name==='all-salaries'){
+    mc.innerHTML=`<div class="pg-title">All Teacher Salaries</div><div class="pg-sub">Payroll management — accountant view</div><div class="card" id="allsal-card"><h3>Loading...</h3></div>`;
+    try{
+      const r=await fetch(`${API}/college/all-salaries`,{headers:{Authorization:'Bearer '+token}});
+      const d=await r.json();
+      if(d.success){
+        document.getElementById('allsal-card').innerHTML=`<h3>Teacher Payroll · June 2024</h3>
+          <table class="tbl"><thead><tr><th>#</th><th>Name</th><th>Subject</th><th>Basic</th><th>Net Pay</th><th>Status</th></tr></thead>
+          <tbody>${d.salaries.map(s=>`<tr><td>${s.id}</td><td>${esc(s.name)}</td><td>${esc(s.subject)}</td><td>₹${s.basic.toLocaleString()}</td><td><strong>₹${s.net.toLocaleString()}</strong></td><td><span class="status-${s.status.toLowerCase()}">${esc(s.status)}</span></td></tr>`).join('')}</tbody></table>`;
+      }
+    }catch(e){document.getElementById('allsal-card').innerHTML=`<p style="color:#c62828">Error</p>`;}
+    return;
+  }
+
+  // ── Restricted attempt sections ──
+  const restrictMap = {
+    'exam-attempt':         { title:'Exam Papers', sub:'Sealed exam papers — restricted', ep:'student-exam-attempt', msg:'Attempting to access sealed exam papers...' },
+    'salary-attempt':       { title:'Salary Records', sub:'Teacher salaries — restricted', ep:'college/salary-attempt', msg:'Attempting to access salary records...' },
+    'records-attempt':      { title:'Student Records', sub:'All student data — restricted', ep:'college/student-records-attempt', msg:'Attempting to access student records...' },
+    'all-salaries-attempt': { title:'All Teacher Salaries', sub:'Payroll data — restricted for teachers', ep:'college/salary-attempt', msg:'Attempting to access payroll...' },
+    'admin-attempt':        { title:'Admin Control Panel', sub:'System administration — high security', ep:'college/admin-access-attempt', msg:'Attempting admin access...' },
+  };
+
+  const rm = restrictMap[name];
+  if(rm){
+    mc.innerHTML=`
+      <div class="pg-title">${esc(rm.title)}</div>
+      <div class="pg-sub">${esc(rm.sub)}</div>
+      <div class="restrict-card">
+        <div class="rc-head" onclick="this.nextElementSibling.classList.toggle('open')">
+          <div class="rc-left"><span class="rc-icon">🔒</span>
+            <div><div class="rc-title">${esc(rm.title)}</div><div class="rc-sub">Access restricted for your role (${esc(user.role)})</div></div>
+          </div>
+          <span class="rc-badge b-restricted">RESTRICTED</span>
+        </div>
+        <div class="rc-body">
+          <p style="font-size:0.81rem;color:#c62828;font-weight:600;margin-bottom:10px">⚠️ This resource is restricted for your role. Attempting access will be logged.</p>
+          <button class="try-btn danger" onclick="tryRestricted('${rm.ep}','${name==='admin-attempt'?'POST':'GET'}','res-${name}')">🔓 Attempt Access (will be logged)</button>
+          <div class="acc-result" id="res-${name}"></div>
+        </div>
+      </div>`;
+    return;
+  }
+
+  mc.innerHTML=`<div class="pg-title">Section not found</div>`;
+}
+
+async function tryRestricted(endpoint, method, resultId){
+  const el=document.getElementById(resultId);
+  if(!el) return;
+  el.textContent='Attempting access...';
+  el.className='acc-result blocked';
+  try{
+    const r=await fetch(`${API}/${endpoint}`,{method, headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'}});
+    const d=await r.json();
+    el.textContent=(r.status===403?'🚫 ':'✅ ')+d.message;
+    el.className='acc-result '+(r.status===403?'blocked':'allowed');
+  }catch(e){el.textContent='❌ '+e.message; el.className='acc-result blocked';}
+}
+
+function toggleEnc(){
+  const peek=document.getElementById('encPeek');
+  const txt=document.getElementById('encTxt');
+  if(!peek) return;
+  const open=peek.style.display==='block';
+  peek.style.display=open?'none':'block';
+  txt.textContent=open?"Show encrypted DB view":"Hide encrypted view";
+  if(!open){
+    document.getElementById('encFields').innerHTML=['name','mobile','address','email'].map(f=>`
+      <div class="ef-label">${f} — AES ciphertext (stored in MySQL)</div>
+      <div class="ef-val">${esc(currentUser[f]||'Login to view')}</div>`).join('');
+  }
+}
+
+function logout(){
+  localStorage.removeItem('token'); localStorage.removeItem('email');
+  token=''; currentUser=null;
+  document.getElementById('authBox').style.display='flex';
+  document.getElementById('portal').style.display='none';
+  switchTab('login');
+}
+
+// ── Auto login ──
+window.addEventListener('load', async ()=>{
+  if(window.location.pathname==='/admin'){showAdminPanel();return;}
+  token=localStorage.getItem('token')||'';
+  if(!token) return;
+  try{
+    const r=await fetch(`${API}/profile`,{headers:{Authorization:'Bearer '+token}});
+    const d=await r.json();
+    if(d.success){currentUser=d.user;showPortal(d.user);}else logout();
+  }catch(e){logout();}
+});
+
+// ── Admin ──
+function showAdminPanel(){
+  document.getElementById('authBox').style.display='none';
+  document.getElementById('portal').style.display='none';
+  document.getElementById('adminPanel').style.display='block';
+  document.body.classList.add('admin-mode');
+}
+function exitAdmin(){window.location.href='/';}
+
+function switchAdminTab(tab){
+  document.querySelectorAll('.adm-tab').forEach((e,i)=>e.classList.toggle('active',['users','audit'][i]===tab));
+  document.getElementById('asec-users').classList.toggle('active',tab==='users');
+  document.getElementById('asec-audit').classList.toggle('active',tab==='audit');
+  if(tab==='audit'&&allLogs.length===0) loadAuditLogs();
+}
+
+async function verifyKey(){
+  const input=document.getElementById('adminKeyInput').value;
+  const errEl=document.getElementById('keyErr');
+  errEl.style.display='none';
+  try{
+    const r=await fetch(`${API}/admin/users`,{headers:{'x-admin-key':input}});
+    if(r.ok){adminKey=input;document.getElementById('keyGate').style.display='none';const d=await r.json();renderUsers(d.users);}
+    else errEl.style.display='block';
+  }catch(e){errEl.textContent='❌ '+e.message;errEl.style.display='block';}
+}
+
+async function loadUsers(){
+  const r=await fetch(`${API}/admin/users`,{headers:{'x-admin-key':adminKey}});
+  const d=await r.json(); renderUsers(d.users);
+}
+
+function renderUsers(users){
+  allUsers=users;
+  document.getElementById('statTotal').textContent=users.length;
+  drawTable(users);
+}
+
+const ROLE_COLORS={'student':'#7eb8f7','teacher':'#69f0ae','accountant':'#ce93d8'};
+
+function drawTable(users){
+  const tbody=document.getElementById('tbody');
+  if(!users||!users.length){tbody.innerHTML=`<tr><td colspan="11" class="empty-state">No users yet.</td></tr>`;return;}
+  tbody.innerHTML=users.map(u=>{
+    const joined=u.created_at?new Date(u.created_at).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}):'—';
+    const roleColor=ROLE_COLORS[u.role]||'#aaa';
+    return `<tr>
+      <td class="c-id">#${u.id}</td>
+      <td class="c-name">${esc(u.plain.name)}</td>
+      <td class="c-mail">${esc(u.userid)}</td>
+      <td><strong style="color:${roleColor}">${esc(u.role)}</strong></td>
+      <td>${esc(u.plain.mobile)}</td>
+      <td>${esc(u.plain.address)}</td>
+      <td class="c-enc" title="${esc(u.encrypted.name)}">${esc((u.encrypted.name||'').slice(0,28))}…</td>
+      <td class="c-enc" title="${esc(u.plain.password)}">${esc((u.plain.password||'').slice(0,24))}…</td>
+      <td class="c-date">${joined}</td>
+      <td>
+        <select class="role-select" id="rs-${u.id}">
+          <option value="student"    ${u.role==='student'    ?'selected':''}>student</option>
+          <option value="teacher"    ${u.role==='teacher'    ?'selected':''}>teacher</option>
+          <option value="accountant" ${u.role==='accountant' ?'selected':''}>accountant</option>
+        </select>
+        <button class="save-role-btn" onclick="saveRole(${u.id})">Save</button>
+      </td>
+      <td><button class="del-btn" onclick="deleteUser(${u.id},this)">Delete</button></td>
+    </tr>`;
+  }).join('');
+}
+
+function filterTable(){
+  const q=document.getElementById('searchInput').value.toLowerCase();
+  if(!q){drawTable(allUsers);return;}
+  drawTable(allUsers.filter(u=>(u.plain.name||'').toLowerCase().includes(q)||(u.userid||'').toLowerCase().includes(q)||(u.role||'').toLowerCase().includes(q)));
+}
+
+async function saveRole(id){
+  const sel=document.getElementById('rs-'+id);
+  const role=sel.value;
+  try{
+    const r=await fetch(`${API}/admin/users/${id}/role`,{method:'PUT',headers:{'x-admin-key':adminKey,'Content-Type':'application/json'},body:JSON.stringify({role})});
+    const d=await r.json();
+    if(d.success){alert(`✅ Role updated to "${role}". User must re-login to see new dashboard.`);loadUsers();}
+    else alert('❌ '+d.message);
+  }catch(e){alert('❌ '+e.message);}
+}
+
+async function deleteUser(id,btn){
+  if(!confirm(`Delete user #${id}?`)) return;
+  btn.disabled=true; btn.textContent='...';
+  try{
+    const r=await fetch(`${API}/admin/users/${id}`,{method:'DELETE',headers:{'x-admin-key':adminKey}});
+    const d=await r.json();
+    if(d.success){allUsers=allUsers.filter(u=>u.id!==id);renderUsers(allUsers);}
+    else{alert('Failed: '+d.message);btn.disabled=false;btn.textContent='Delete';}
+  }catch(e){alert(e.message);btn.disabled=false;btn.textContent='Delete';}
+}
+
+async function loadAuditLogs(){
+  document.getElementById('auditTbody').innerHTML=`<tr><td colspan="8" class="empty-state">Loading...</td></tr>`;
+  try{
+    const r=await fetch(`${API}/admin/audit-logs`,{headers:{'x-admin-key':adminKey}});
+    const d=await r.json();
+    allLogs=d.logs||[];
+    document.getElementById('auditTotal').textContent=allLogs.length;
+    drawAudit(allLogs);
+  }catch(e){document.getElementById('auditTbody').innerHTML=`<tr><td colspan="8" class="empty-state">Error: ${e.message}</td></tr>`;}
+}
+
+function drawAudit(logs){
+  const tbody=document.getElementById('auditTbody');
+  if(!logs||!logs.length){tbody.innerHTML=`<tr><td colspan="8" class="empty-state">No logs yet.</td></tr>`;return;}
+  const severe=['UNAUTHORIZED_ACCESS','EXAM_PAPER_ACCESS_ATTEMPT','ADMIN_ACCESS_ATTEMPT','LOGIN_FAILED'];
+  tbody.innerHTML=logs.map(l=>{
+    const ts=l.performed_at?new Date(l.performed_at).toLocaleString('en-IN'):'—';
+    const bc='ab-'+(l.action_type||'').replace(/[^A-Z_]/g,'');
+    const isSev=severe.includes(l.action_type);
+    let detail='—';
+    try{
+      const nd=typeof l.new_data==='string'?JSON.parse(l.new_data):l.new_data;
+      if(nd){
+        if(nd.attempted_resource) detail=`Attempted: ${nd.attempted_resource} → ${nd.result||''}`;
+        else if(nd.reason)        detail=`Reason: ${nd.reason}`;
+        else if(nd.role)          detail=`Role: ${nd.role}${nd.status?' · '+nd.status:''}`;
+        else if(nd.records_accessed!==undefined) detail=`Records: ${nd.records_accessed}`;
+        else if(nd.logs_accessed!==undefined)    detail=`Logs: ${nd.logs_accessed}`;
+        else if(nd.fields_accessed) detail=`Fields: ${nd.fields_accessed.join(', ')}`;
+        else detail=JSON.stringify(nd).slice(0,70);
+      }
+    }catch(e){detail=String(l.new_data||'—').slice(0,70);}
+    return `<tr style="${isSev?'background:#1a0a0a;':''}">
+      <td class="c-id">#${l.log_id}</td>
+      <td><span class="abadge ${bc}">${esc(l.action_type)}</span>${isSev?'<br><span class="sev-high">⚠ HIGH</span>':''}</td>
+      <td class="c-mail">${esc(l.username||'—')}</td>
+      <td class="c-id">${l.record_id||'—'}</td>
+      <td><div class="log-data" title="${esc(String(l.new_data||''))}">${esc(detail)}</div></td>
+      <td class="log-ip">${esc(l.ip_address||'—')}</td>
+      <td><div class="log-dev" title="${esc(l.device_info||'')}">${esc((l.device_info||'—').slice(0,42))}</div></td>
+      <td class="c-date">${ts}</td>
+    </tr>`;
+  }).join('');
+}
+
+function filterAudit(){
+  const q=document.getElementById('auditSearch').value.toLowerCase();
+  if(!q){drawAudit(allLogs);return;}
+  drawAudit(allLogs.filter(l=>(l.username||'').toLowerCase().includes(q)||(l.action_type||'').toLowerCase().includes(q)||(l.ip_address||'').toLowerCase().includes(q)||(String(l.new_data||'')).toLowerCase().includes(q)));
+}
+
+function esc(s){if(!s)return '';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+</script>
+</body>
+</html>
