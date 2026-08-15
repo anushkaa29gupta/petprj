@@ -1,28 +1,47 @@
 -- ══════════════════════════════════════════════════════════════
 --  PET-PROJECT — Role Migration
 --  File: role_migration.sql
---  Run this ONCE in MySQL after your existing setup
+--
+--  ONLY run this if you already have an OLDER petdb (created
+--  before role support existed) and don't want to drop your data.
+--  If you're setting up fresh, just run stored_procedures.sql —
+--  the role column is already included there and this file is
+--  not needed.
 --
 --  What this does:
---  1. Adds 'role' column to users table
---  2. Updates sp_RegisterUser to accept role
---  3. Updates sp_LoginUser to return role
---  4. Updates sp_GetProfile to return role
---  5. Updates sp_GetAllUsersAdmin to return role
+--  1. Adds 'role' column to users table (skipped if it already exists)
+--  2. Recreates sp_RegisterUser to accept + store role
+--  3. Recreates sp_LoginUser to return role
+--  4. Recreates sp_GetProfile to return role
+--  5. Recreates sp_GetAllUsersAdmin to return role
 --  6. Adds sp_UpdateUserRole for admin to change roles
---  7. Updates sp_GetAuditLogs (already exists, no change needed)
+--  (sp_GetAuditLogs is defined separately in audit_setup.sql)
 -- ══════════════════════════════════════════════════════════════
 
 USE petdb;
 
 -- ──────────────────────────────────────────────────────────────
---  STEP 1 — Add role column to users table
---  Default = 'student' so existing users are not affected
+--  STEP 1 — Add role column to users table (idempotent)
+--  Default = 'student' so existing users are not affected.
+--  Guarded with information_schema check so re-running this
+--  script never throws "Duplicate column name".
 -- ──────────────────────────────────────────────────────────────
-ALTER TABLE users
-  ADD COLUMN role ENUM('student','teacher','accountant','admin')
-  NOT NULL DEFAULT 'student'
-  AFTER userid;
+SET @col_exists := (
+  SELECT COUNT(*) FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME   = 'users'
+    AND COLUMN_NAME  = 'role'
+);
+
+SET @ddl := IF(
+  @col_exists = 0,
+  "ALTER TABLE users ADD COLUMN role ENUM('student','teacher','accountant','admin') NOT NULL DEFAULT 'student' AFTER userid",
+  "SELECT 'role column already exists — skipped' AS status"
+);
+
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
 -- ──────────────────────────────────────────────────────────────
 --  STEP 2 — Drop and recreate stored procedures
@@ -105,8 +124,10 @@ END //
 
 -- ══════════════════════════════════════════════════════════════
 --  GET ALL USERS ADMIN — returns role column
+--  (fixed: original script was missing the opening "(" here,
+--  which would have failed to compile — corrected below)
 -- ══════════════════════════════════════════════════════════════
-CREATE PROCEDURE sp_GetAllUsersAdmin
+CREATE PROCEDURE sp_GetAllUsersAdmin(
   IN p_key VARCHAR(255)
 )
 BEGIN

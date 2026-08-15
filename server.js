@@ -6,7 +6,24 @@ const express = require("express");
 const cors    = require("cors");
 const bcrypt  = require("bcrypt");
 const jwt     = require("jsonwebtoken");
+const crypto  = require("crypto");
 const db      = require("./db");
+
+function withAuditContext(ip, device, useConnection) {
+  if (typeof db.getConnection === "function") {
+    db.getConnection((err, conn) => {
+      if (err) return useConnection(err);
+      conn.query("SET @audit_ip = ?, @audit_device = ?", [ip, device], (err2) => {
+        if (err2) { conn.release(); return useConnection(err2); }
+        useConnection(null, conn, () => conn.release());
+      });
+    });
+  } else {
+    db.query("SET @audit_ip = ?, @audit_device = ?", [ip, device], (err2) => {
+      useConnection(err2, db, () => {});
+    });
+  }
+}
 
 const app = express();
 app.use(cors());
@@ -25,16 +42,16 @@ function logTable(title, rows) {
 }
 
 // ══════════════════════════════════════════════════════════════
-//  AUDIT LOGGER
-//  Logs every action to audit_logs table
-//  Triggers handle INSERT/UPDATE/DELETE automatically
-//  This function handles: LOGIN, PROFILE_VIEW, ACCESS_ATTEMPTS
+//  AUDIT LOGGER — ab yeh audit_logs mein DIRECTLY nahi likhta.
+//  Sirf user_activity_log mein ek simple row daalta hai.
+//  trg_after_activity_insert trigger automatically audit_logs
+//  mein poora formatted entry bana deta hai.
 // ══════════════════════════════════════════════════════════════
 function auditLog(userId, username, actionType, recordId, oldData, newData, ip, device) {
   db.query(
-    `INSERT INTO audit_logs
-     (user_id, username, action_type, table_name, record_id, old_data, new_data, ip_address, device_info)
-     VALUES (?, ?, ?, 'users', ?, ?, ?, ?, ?)`,
+    `INSERT INTO user_activity_log
+     (user_id, username, action_type, record_id, old_data, new_data, ip_address, device_info)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       userId   || null,
       username || null,
@@ -45,7 +62,7 @@ function auditLog(userId, username, actionType, recordId, oldData, newData, ip, 
       ip       || null,
       device   || null
     ],
-    (err) => { if (err) console.error("⚠️  Audit log failed:", err.message); }
+    (err) => { if (err) console.error("⚠️  Activity log failed:", err.message); }
   );
 }
 
@@ -78,28 +95,23 @@ app.post("/api/register", async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 12);
 
-    // Register as 'student' by default — admin assigns teacher/accountant later
-    db.query(
-      "CALL sp_RegisterUser(?, ?, ?, ?, ?, ?, ?, ?)",
-      [email, "student", name, mobile, address, email, hashedPassword, DB_AES_KEY],
-      (err) => {
-        if (err) {
-          console.error("❌ PROCEDURE ERROR:", err.message);
-          return res.status(500).json({ success: false, message: "Registration failed" });
+    withAuditContext(ip, device, (ctxErr, conn, release) => {
+      if (ctxErr) return res.status(500).json({ success: false, message: "Audit context failed" });
+
+      conn.query(
+        "CALL sp_RegisterUser(?, ?, ?, ?, ?, ?, ?, ?)",
+        [email, "student", name, mobile, address, email, hashedPassword, DB_AES_KEY],
+        (err) => {
+          release();
+          if (err) {
+            console.error("❌ PROCEDURE ERROR:", err.message);
+            return res.status(500).json({ success: false, message: "Registration failed" });
+          }
+          logTable("✅ USER REGISTERED (role: student)", [["Email", email], ["IP", ip]]);
+          res.json({ success: true, message: "Registered successfully! Please login." });
         }
-
-        // Trigger logged INSERT — update with IP + device
-        db.query(
-          `UPDATE audit_logs SET ip_address=?, device_info=?
-           WHERE username=? AND action_type='INSERT'
-           ORDER BY performed_at DESC LIMIT 1`,
-          [ip, device, email]
-        );
-
-        logTable("✅ USER REGISTERED (role: student)", [["Email", email], ["IP", ip]]);
-        res.json({ success: true, message: "Registered successfully! Please login." });
-      }
-    );
+      );
+    });
   });
 });
 
@@ -478,22 +490,19 @@ app.put("/api/admin/users/:id/role", adminAuth, (req, res) => {
     const oldRole = rows[0].role;
     const email   = rows[0].userid;
 
-    db.query("CALL sp_UpdateUserRole(?, ?)", [req.params.id, role], (err2) => {
-      if (err2) return res.status(500).json({ success: false, message: err2.message });
+    withAuditContext(ip, device, (ctxErr, conn, release) => {
+      if (ctxErr) return res.status(500).json({ success: false, message: "Audit context failed" });
 
-      // Log role change — trigger handles UPDATE row, we update with details
-      db.query(
-        `UPDATE audit_logs SET ip_address=?, device_info=?
-         WHERE username=? AND action_type='UPDATE'
-         ORDER BY performed_at DESC LIMIT 1`,
-        [ip, device, email]
-      );
+      conn.query("CALL sp_UpdateUserRole(?, ?)", [req.params.id, role], (err2) => {
+        release();
+        if (err2) return res.status(500).json({ success: false, message: err2.message });
 
-      auditLog(null, "ADMIN", "ROLE_CHANGED", req.params.id,
-        { role: oldRole }, { role: role, changed_by: "ADMIN" }, ip, device);
+        auditLog(null, "ADMIN", "ROLE_CHANGED", req.params.id,
+          { role: oldRole }, { role: role, changed_by: "ADMIN" }, ip, device);
 
-      logTable("🔄 ROLE UPDATED", [["User", email], ["Old", oldRole], ["New", role]]);
-      res.json({ success: true, message: `Role updated to ${role}` });
+        logTable("🔄 ROLE UPDATED", [["User", email], ["Old", oldRole], ["New", role]]);
+        res.json({ success: true, message: `Role updated to ${role}` });
+      });
     });
   });
 });
@@ -508,19 +517,19 @@ app.delete("/api/admin/users/:id", adminAuth, (req, res) => {
     const email = rows?.[0]?.userid || "unknown";
     const role  = rows?.[0]?.role  || "unknown";
 
-    db.query("CALL sp_DeleteUser(?)", [req.params.id], (err2) => {
-      if (err2) return res.status(500).json({ success: false, message: err2.message });
+    withAuditContext(ip, device, (ctxErr, conn, release) => {
+      if (ctxErr) return res.status(500).json({ success: false, message: "Audit context failed" });
 
-      db.query(
-        `UPDATE audit_logs SET ip_address=?, device_info=?,
-         username=CONCAT('ADMIN deleted: ', ?)
-         WHERE record_id=? AND action_type='DELETE'
-         ORDER BY performed_at DESC LIMIT 1`,
-        [ip, device, email, req.params.id]
-      );
+      conn.query("CALL sp_DeleteUser(?)", [req.params.id], (err2) => {
+        release();
+        if (err2) return res.status(500).json({ success: false, message: err2.message });
 
-      logTable("🗑️  USER DELETED", [["Email", email], ["Role", role], ["IP", ip]]);
-      res.json({ success: true, message: `User ${req.params.id} deleted` });
+        auditLog(null, "ADMIN", "USER_DELETED", req.params.id,
+          null, { deleted_user: email, deleted_role: role }, ip, device);
+
+        logTable("🗑️  USER DELETED", [["Email", email], ["Role", role], ["IP", ip]]);
+        res.json({ success: true, message: `User ${req.params.id} deleted` });
+      });
     });
   });
 });
@@ -540,6 +549,54 @@ app.get("/api/admin/audit-logs", adminAuth, (req, res) => {
   });
 });
 
+// ══════════════════════════════════════════════════════════════
+//  ADMIN — VERIFY BLOCKCHAIN INTEGRITY OF AUDIT LOGS
+//  Recomputes every row's hash and compares to stored curr_hash
+//  Any mismatch = someone tampered the DB directly
+// ══════════════════════════════════════════════════════════════
+app.get("/api/admin/verify-chain", adminAuth, (req, res) => {
+  db.query("CALL sp_GetAuditLogs()", (err, results) => {
+    if (err) return res.status(500).json({ success: false, message: err.message });
+    const logs = results[0];
+
+    let expectedPrev = "0".repeat(64);
+    let brokenAt = null;
+
+    for (const row of logs) {
+      const raw = [
+        expectedPrev,
+        row.user_id ?? "",
+        row.username ?? "",
+        row.action_type,
+        row.table_name ?? "",
+        row.record_id ?? "",
+        row.old_data ?? "",
+        row.new_data ?? "",
+        row.performed_at instanceof Date ? row.performed_at.toISOString().slice(0, 19).replace("T", " ") : row.performed_at,
+        row.ip_address ?? "",
+        row.device_info ?? ""
+      ].join("|");
+
+      const recomputed = crypto.createHash("sha256").update(raw).digest("hex");
+
+      if (row.prev_hash !== expectedPrev || row.curr_hash !== recomputed) {
+        brokenAt = row.log_id;
+        break;
+      }
+      expectedPrev = row.curr_hash;
+    }
+
+    if (brokenAt) {
+      logTable("🚨 CHAIN BROKEN", [["log_id", brokenAt]]);
+      return res.json({ success: true, valid: false, brokenAtLogId: brokenAt,
+        message: `Tampering detected at log_id ${brokenAt}` });
+    }
+
+    res.json({ success: true, valid: true, totalChecked: logs.length,
+      message: "Chain intact — no tampering detected" });
+  });
+});
+
 // ── ADMIN PAGE ROUTE ───────────────────────────────────────
 app.get("/admin", (req, res) => {
   res.sendFile(__dirname + "/public/index.html");
@@ -555,6 +612,6 @@ app.listen(3000, () => {
     ["Encryption",  "AES inside MySQL stored procedures"],
     ["Password",    "BCrypt (rounds: 12)"],
     ["Session",     "JWT with role (2h expiry)"],
-    ["Audit",       "MySQL triggers + Node.js logging"],
+    ["Audit",       "MySQL triggers + Node.js hash-chain (append-only)"],
   ]);
 });
